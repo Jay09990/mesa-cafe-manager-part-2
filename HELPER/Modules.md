@@ -24,8 +24,8 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 
 ## 2. Auth Module
 **Purpose:** Identity and access, per tenant.
-- Clerk Organizations handles identity only: one Organization per tenant, sign-in/sign-up/session/invites
-- Roles and permissions are NOT Clerk Roles — see `tools.md` for why. A `role` field lives on the tenant's staff record in Mesa's own database, checked by `guards.ts` helpers
+- Better Auth handles identity, sessions, and organization membership: one Better Auth Organization per tenant, with sign-in/sign-up/session/invites
+- Application roles live on Mesa's tenant-scoped staff record and are checked by `guards.ts`; Better Auth organization roles do not grant access to Mesa features
 - **Fixed roles** (not an admin-buildable role system yet):
   - **Owner** — everything: bookings, menu, sales log, dashboard, settings, billing, staff management
   - **Manager** — bookings, customers, menu, sales log, dashboard, exports; no settings/billing

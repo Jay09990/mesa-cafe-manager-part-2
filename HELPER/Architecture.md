@@ -82,7 +82,7 @@ mesa/
 │   │   ├── components/                     # AdminSidebar, SettingsForm, BookingsTable
 │   │   └── types.ts
 │   ├── auth/
-│   │   ├── clerk-config.ts
+│   │   ├── better-auth-config.ts
 │   │   └── guards.ts                       # role/tier gating helpers
 │   ├── billing/
 │   │   ├── components/                     # PricingTable, TrialBanner

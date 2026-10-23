@@ -20,9 +20,9 @@ Single source of truth for every tool/library decision. The agent should never i
 - **Multi-tenancy pattern:** shared database, `tenant_id` column on every tenant-scoped table, enforced at the query layer (Prisma middleware or a wrapped client that always injects `tenant_id`) — never trust `tenant_id` from client input alone, always derive it server-side from the authenticated session/subdomain
 
 ## Auth
-- **Clerk**, using **Organizations** for identity only — each café/SMB tenant maps to a Clerk Organization, and Clerk handles sign-in/sign-up/session/invites out of the box
-- **Roles and permissions are NOT stored in Clerk's Role system.** Clerk's default Admin/Member roles (with custom permissions on them) are free, but custom Roles beyond those two require Clerk's paid B2B Authentication add-on in production ($100/mo) — not worth paying at this stage for what a simple own-database field solves for free
-- Instead: a `role` field lives on the tenant's staff record in Mesa's own database (`owner`, `manager`, `staff_orders`, `staff_bookings`, extensible to fully custom roles later), checked by the `guards.ts` helpers in `architecture.md` — same pattern as the custom JWT RBAC already used in MATRIX VMS, just with Clerk handling the underlying auth mechanics
+- **Better Auth**, with its Organization plugin for identity, sessions, and invitations. Each café tenant maps to one Better Auth organization.
+- Better Auth owns authentication and organization membership. Mesa's separate tenant staff record owns application roles (`owner`, `manager`, `staff_orders`, `staff_bookings`), checked by the shared `guards.ts` helpers. Never authorize application features from a client-supplied organization or role.
+- Use the official Better Auth Prisma adapter with the existing Prisma/PostgreSQL database. Keep Better Auth's required auth tables separate from Mesa's tenant-scoped business models.
 
 ## File/Image Storage
 - **UploadThing** (simplest Next.js-native integration) or **Supabase Storage** if already on Supabase for the DB — for menu photos, logos, gallery images per tenant
