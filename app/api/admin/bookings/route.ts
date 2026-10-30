@@ -57,9 +57,12 @@ export async function POST(request: Request) {
   if (!tenant || tenant.id !== access.tenantId) return apiError("Café not found.", 404);
   try {
     const result = await createBooking({ ...parsed.data, tenantId: access.tenantId, email: parsed.data.email || null, source: parsed.data.source });
-    const emailSent = parsed.data.sendConfirmation && parsed.data.email
-      ? await sendBookingEmail({ to: parsed.data.email, cafeName: tenant.name, date: parsed.data.date, time: parsed.data.time, status: "confirmed" })
-      : false;
+    let emailSent = false;
+    try {
+      emailSent = parsed.data.sendConfirmation && parsed.data.email
+        ? await sendBookingEmail({ to: parsed.data.email, cafeName: tenant.name, date: parsed.data.date, time: parsed.data.time, status: "confirmed" })
+        : false;
+    } catch { emailSent = false; }
     return apiSuccess({ id: (result.created as { id: string }).id, status: result.status, confirmationSentTo: emailSent ? parsed.data.email : null }, 201);
   } catch (error) {
     if (error instanceof BookingError) return apiError(error.message, error.statusCode);

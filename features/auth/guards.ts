@@ -23,12 +23,13 @@ export async function requireTenantRole(slug: string, allowedRoles: MesaRole[]) 
   return { userId: session.user.id, tenantId: staff.tenant.id, role: staff.role as MesaRole };
 }
 
-export function canAccessRole(role: string, capability: "bookings" | "customers" | "menu" | "sales" | "settings" | "billing"): boolean {
+export function canAccessRole(role: string, capability: "bookings" | "customers" | "menu" | "sales" | "dashboard" | "settings" | "billing"): boolean {
   const access: Record<typeof capability, MesaRole[]> = {
     bookings: ["owner", "manager", "staff_bookings"],
     customers: ["owner", "manager", "staff_bookings"],
     menu: ["owner", "manager"],
     sales: ["owner", "manager"],
+    dashboard: ["owner", "manager"],
     settings: ["owner"],
     billing: ["owner"],
   };

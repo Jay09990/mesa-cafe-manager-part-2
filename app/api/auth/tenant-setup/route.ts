@@ -18,14 +18,25 @@ export async function POST(request: Request) {
   const parsed = setupSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ success: false, data: null, statusCode: 400, errormsg: "Enter a café name and a web address using letters, numbers, and hyphens." }, { status: 400 });
 
-  const existing = await prisma.tenant.findUnique({ where: { slug: parsed.data.slug }, select: { id: true } });
-  if (existing) return NextResponse.json({ success: false, data: null, statusCode: 409, errormsg: "That web address is already in use. Choose another." }, { status: 409 });
-
   try {
-    const organization = await auth.api.createOrganization({
-      body: { name: parsed.data.tenantName, slug: parsed.data.slug },
-      headers: await headers(),
+    const existing = await prisma.tenant.findUnique({ where: { slug: parsed.data.slug }, select: { id: true } });
+    if (existing) return NextResponse.json({ success: false, data: null, statusCode: 409, errormsg: "That web address is already in use. Choose another." }, { status: 409 });
+
+    // A prior attempt may have created the auth organization before tenant creation failed.
+    // Reuse it only when the current signed-in user is already its owner.
+    const priorOrganization = await prisma.organization.findUnique({
+      where: { slug: parsed.data.slug },
+      select: { id: true, members: { where: { userId: session.user.id, role: "owner" }, select: { id: true }, take: 1 } },
     });
+    if (priorOrganization && !priorOrganization.members.length) {
+      return NextResponse.json({ success: false, data: null, statusCode: 409, errormsg: "That web address is already in use. Choose another." }, { status: 409 });
+    }
+    const organization = priorOrganization
+      ? { id: priorOrganization.id }
+      : await auth.api.createOrganization({
+        body: { name: parsed.data.tenantName, slug: parsed.data.slug },
+        headers: await headers(),
+      });
     if (!organization) throw new Error("organization-create-failed");
 
     const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
@@ -45,7 +56,8 @@ export async function POST(request: Request) {
       return created;
     });
     return NextResponse.json({ success: true, data: { id: tenant.id, slug: tenant.slug, trialEndsAt }, statusCode: 201, errormsg: null }, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("[tenant-setup] Failed to create tenant", error);
     return NextResponse.json({ success: false, data: null, statusCode: 500, errormsg: "We could not set up your café. Please try again." }, { status: 500 });
   }
 }

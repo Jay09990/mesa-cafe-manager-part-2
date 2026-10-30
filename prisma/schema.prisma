@@ -8,7 +8,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+// Better Auth accounts live beside, and do not overwrite, the legacy Clerk users.
+model AuthUser {
   id            String        @id
   name          String
   email         String        @unique
@@ -21,9 +22,21 @@ model User {
   memberships   Member[]
   invitations   Invitation[]  @relation("InvitationInviter")
   staffRecords  StaffMember[]
-  usageEvents   UsageEvent[]
-  salesCreated  SalesLog[]    @relation("SalesCreatedBy")
-  salesUpdated  SalesLog[]    @relation("SalesUpdatedBy")
+}
+
+// The existing Neon User table is retained for legacy tenant data.
+model User {
+  id          String   @id
+  clerkUserId String?  @unique
+  tenantId    String
+  email       String
+  name        String?
+  role        UserRole @default(staff_bookings)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
 }
 
 model Session {
@@ -36,7 +49,7 @@ model Session {
   userAgent            String?
   userId               String
   activeOrganizationId String?
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -55,7 +68,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -80,7 +93,7 @@ model Organization {
   createdAt   DateTime     @default(now())
   members     Member[]
   invitations Invitation[]
-  tenant      Tenant?
+  tenant      Tenant?       @relation("TenantAuthOrganization")
 }
 
 model Member {
@@ -90,7 +103,7 @@ model Member {
   role           String
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           AuthUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -106,21 +119,24 @@ model Invitation {
   inviterId      String
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inviter        User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviter        AuthUser     @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
 }
 
 model Tenant {
   id                   String        @id @default(cuid())
-  authOrganizationId   String        @unique
-  authOrganization     Organization  @relation(fields: [authOrganizationId], references: [id])
+  authOrganizationId   String?       @unique
+  authOrganization     Organization? @relation("TenantAuthOrganization", fields: [authOrganizationId], references: [id])
   name                 String
   slug                 String        @unique
-  tier                 String        @default("basic")
+  tier                 TenantTier    @default(basic)
   subscriptionStatus   String        @default("trial")
   theme                Json
   businessInfo         Json          @default("{}")
+  businessCategory     BusinessCategory?
+  gstin                String?
+  fssaiLicense         String?
   openingHours         Json          @default("{}")
   seatCapacity         Int           @default(40)
   maxPartySize         Int           @default(12)
@@ -138,6 +154,7 @@ model Tenant {
   customers            Customer[]
   salesLogs            SalesLog[]
   usageEvents          UsageEvent[]
+  legacyUsers          User[]
 }
 
 model StaffMember {
@@ -147,7 +164,7 @@ model StaffMember {
   role      String
   createdAt DateTime @default(now())
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, userId])
   @@index([userId])
@@ -218,19 +235,17 @@ model SalesLog {
   tenantId    String
   date        String
   ordersCount Int
-  cash        Decimal  @db.Decimal(12, 2)
-  upi         Decimal  @db.Decimal(12, 2)
-  card        Decimal  @db.Decimal(12, 2)
-  other       Decimal  @db.Decimal(12, 2)
-  totalSales  Decimal  @db.Decimal(12, 2)
+  cash        Decimal  @db.Decimal(10, 2)
+  upi         Decimal  @db.Decimal(10, 2)
+  card        Decimal  @db.Decimal(10, 2)
+  other       Decimal  @db.Decimal(10, 2)
+  totalSales  Decimal  @db.Decimal(10, 2)
   notes       String?
-  createdById String?
-  updatedById String?
+  createdById String?  @map("createdBy")
+  updatedById String?  @map("updatedBy")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy   User?    @relation("SalesCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy   User?    @relation("SalesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, date])
   @@index([tenantId, date])
@@ -244,7 +259,27 @@ model UsageEvent {
   meta      Json?
   createdAt DateTime @default(now())
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, type, createdAt])
+}
+
+enum UserRole {
+  owner
+  manager
+  staff_orders
+  staff_bookings
+}
+
+enum TenantTier {
+  basic
+  standard
+  premium
+  custom
+}
+
+enum BusinessCategory {
+  cafe
+  qsr
+  casual_dining
+  cloud_kitchen
 }

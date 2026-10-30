@@ -15,16 +15,23 @@ Mesa is being given to 3–4 pilot cafés for a ~30-day free trial. The goal is 
 
 Anything not listed here is out of scope — see "Explicitly Not in the Trial" at the bottom.
 
+**Positioning (say this in pitches):** the trial measures what owners actually value before billing is built. Do not claim theft or leakage detection — a manually typed sales log cannot prove either, and a sharp café owner will ask.
+
 ## 1. Tenant Module
 **Purpose:** Resolve which café/SMB a request belongs to, and provide tenant context everywhere downstream.
 - Resolve tenant from subdomain (`tenant.mesa.app`) or custom domain (later). On localhost, derive the tenant slug from the page URL, never hardcode a tenant
 - Provide tenant config (name, theme reference, tier, contact info, timezone, currency) via context to both public site and admin panel
 - **Timezone and currency are tenant settings** (`timezone` IANA name, default `Asia/Kolkata`; `currency` ISO code, default `INR`). All business-date logic ("today", slot generation, day-end report) uses the tenant's timezone via `lib/time.ts` — never the server's timezone. All money display uses the tenant's currency — no hardcoded currency symbols
+- `businessInfo` gains an optional `city` key (plain string) — used for local search and city-first targeting, not validated against a list
+- `businessCategory` (nullable enum: `cafe | qsr | casual_dining | cloud_kitchen`) is a tenant-level tag for future tier-segmentation and marketing. **This is not the `Outlet` entity** — it does not imply multi-outlet support, which stays deferred (see "Explicitly Not in the Trial"). Do not scaffold an `Outlet` table or relation from this field
+- `gstin` and `fssaiLicense` (both nullable strings) are stored for later use in the Phase 3 billing/invoicing module. No validation, no required state, no UI gate anywhere in the trial — they exist only so a café doesn't have to be asked again post-trial
 - Enforce that all downstream queries are scoped to the resolved tenant — this is the multi-tenancy backbone, treat it as security-critical, not just convenience
 
 ## 2. Auth Module
 **Purpose:** Identity and access, per tenant.
 - Better Auth handles identity, sessions, and organization membership: one Better Auth Organization per tenant, with sign-in/sign-up/session/invites
+- Sign-in/sign-up screens are built in-house (shadcn + React Hook Form); there are no hosted auth components or hosted user dashboard
+- Membership rule: every guard checks the Mesa staff record, and inviting or removing a user writes the Better Auth membership and the Mesa staff record together in one service function, so the two cannot drift
 - Application roles live on Mesa's tenant-scoped staff record and are checked by `guards.ts`; Better Auth organization roles do not grant access to Mesa features
 - **Fixed roles** (not an admin-buildable role system yet):
   - **Owner** — everything: bookings, menu, sales log, dashboard, settings, billing, staff management
@@ -104,7 +111,7 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 - Empty states say what to do next
 
 **Day-end email** (Resend, email only)
-- Sent each evening at 22:30 tenant-local time to the owner: today's sales, orders, average order value, bookings, change vs yesterday. If sales were not logged, send a short nudge instead
+- Sent each evening to the owner (target 22:30 tenant-local; on the Vercel Hobby plan it can arrive up to about an hour later — see `tools.md`, and never promise an exact time in the UI or in sales material): today's sales, orders, average order value, bookings, change vs yesterday. If sales were not logged, send a short nudge instead
 - One daily cron is enough while all trial cafés are in India; revisit per-timezone scheduling before going global
 
 **Export:** CSV for the sales log and for bookings, by date range. Excel/PDF/GST reports are deferred
@@ -118,6 +125,13 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 - Admin page: read-only list with search by name or phone
 - No campaigns, loyalty, segments, birthdays or feedback in the trial
 
+## 8a. Onboarding Sequencing (applies to Tenant + Admin Panel)
+**Purpose:** Get a usable tenant live with the least friction possible — every extra required field before first use costs conversion.
+- Signup captures identity only: owner name + email + password (via Better Auth), café/business name, slug. Nothing else is required to create the account
+- Business setup fields (address, `city`, map link, Instagram, opening hours, seat capacity, max party size) already exist on `Tenant`/`businessInfo` — they are **not** collected in a blocking wizard. After signup, the admin panel shows a persistent, dismissible "Finish setting up your café" banner linking to Settings until the minimum needed to go live (address, opening hours, capacity) is filled
+- `businessCategory`, `gstin`, `fssaiLicense` are optional fields inside Settings, never part of the banner's "required" set
+- The public site and booking flow degrade gracefully (clear empty states, per `design.md`) rather than being blocked, for a tenant that hasn't finished setup
+
 ## 9. Admin Panel Module
 **Purpose:** Where the café owner/staff manages everything. Organised around four jobs: check today's bookings, update the menu, log today's sales, see the numbers.
 - Sidebar: Dashboard (Today), Bookings, Menu, Sales, Customers, Settings, Billing, link to the public site. Show only what the user's role allows
@@ -129,10 +143,28 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 **Purpose:** Keep tier logic in one place and make the trial work without charging anyone.
 - `tier-config.ts` stays the single source of truth for what each tier unlocks. Add feature flags `salesLog` and `dashboard`. `analytics` stays reserved for deeper analytics later
 - **Trial rule:** while `subscriptionStatus === "trial"`, all trial modules and settings are unlocked regardless of tier. Trial length is a constant in `tier-config.ts` (`TRIAL_DAYS = 30`)
-- Post-trial tier mapping and pricing are **intentionally undecided** — they will be set from trial findings. Until then `salesLog` and `dashboard` are `false` on every paid tier (reachable only through the trial)
+- Post-trial tier mapping and pricing are **intentionally undecided** — they will be set from trial findings (a provisional hypothesis is recorded under "Provisional pricing" below and does not change this). Until then `salesLog` and `dashboard` are `false` on every paid tier (reachable only through the trial)
 - Onboarding during the trial skips plan selection: the tenant is created with `subscriptionStatus = "trial"` and `trialEndsAt = now + TRIAL_DAYS`
 - `trialEndsAt` is informational in this phase: show a non-blocking banner when it passes. **Do not lock features and do not wire Razorpay checkout.** Jay extends or converts tenants manually
 - Existing Razorpay code (create-subscription, verify, webhook) stays in the repo but is not surfaced in the UI
+
+### Provisional pricing (hypothesis — not final, not implemented)
+Recorded so the trial can test it. Prices live in this doc only: `tier-config.ts` keeps feature flags, and `salesLog`/`dashboard` stay `false` on every paid tier until the post-trial decision. Do not show prices anywhere in the UI until they are set. All prices exclude GST (18% on software services as far as we know — confirm registration and invoicing with a CA before the first invoice).
+
+| Tier | Intended contents | Per month | Per year, prepaid |
+|---|---|---|---|
+| Basic | Public site + menu | ₹399 | ₹3,999 |
+| Standard | Basic + bookings + customers | ₹799 | ₹7,999 |
+| Premium | Standard + sales log, Today dashboard, day-end email, exports | ₹1,299 | ₹12,999 |
+
+- Basic is a funnel (free QR-menu tools compete with it); Standard and Premium carry the revenue
+- Push annual prepay (about two months free) — early cash matters more than a higher monthly price
+- Founding-café offer for pilots: 40% off the first year for an annual prepay, and the setup fee is waived
+- One-time setup fee ₹3,000–5,000 for menu digitization (not charged to pilots). Photoshoot is a subcontracted add-on with a margin. No hardware resale (referral fee at most). No WhatsApp credits until WhatsApp is built
+- No per-booking commission — a pitch point against booking platforms that charge per diner
+- Per-outlet pricing only when chains arrive
+- First payments are collected manually with a Razorpay payment link; checkout stays unwired
+- Validate near trial day 25: ask for a prepaid commitment (not "would you pay?"), and read the usage events — if cafés open the dashboard and log sales most days, Premium is justified; if they only use bookings, price around bookings
 
 ## 11. Trial Instrumentation Module
 **Purpose:** Measure what cafés actually do, so decisions come from usage and not from guesses.
@@ -144,7 +176,7 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 
 ## Data Model Changes (additive migrations only)
 Never drop or rewrite a column that holds data in the same migration that introduces its replacement.
-- **Tenant:** add `timezone` (default `Asia/Kolkata`), `currency` (default `INR`), `autoConfirmBookings` (default false), `slotIntervalMinutes` (default 30), `trialEndsAt`, `lastDayEndReportDate`. `openingHours` JSON gains an optional `weeklyOverrides` (existing saved hours stay valid)
+- **Tenant:** add `timezone` (default `Asia/Kolkata`), `currency` (default `INR`), `autoConfirmBookings` (default false), `slotIntervalMinutes` (default 30), `trialEndsAt`, `lastDayEndReportDate`, `businessCategory` (nullable enum, see Tenant Module), `gstin` (nullable string), `fssaiLicense` (nullable string). `openingHours` JSON gains an optional `weeklyOverrides` (existing saved hours stay valid). `businessInfo` JSON gains an optional `city` key
 - **Booking:** add `source` (enum `online | phone | walk_in`, default `online`), `phone`, `email`, `customerId`. Backfill `phone`/`email` from `contact` (email if it contains `@`, otherwise phone), then keep `contact` until the next release before dropping it
 - **MenuItem:** add `dietaryType` (nullable enum `veg | non_veg | egg`), `sortOrder` (default 0), `isFeatured` (default false)
 - **Customer (new):** `tenantId`, `name`, `phone`, `email?`, `firstSeenAt`, `lastBookingAt?`, `bookingCount`, `noShowCount`; unique on `[tenantId, phone]`

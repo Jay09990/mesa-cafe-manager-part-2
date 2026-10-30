@@ -5,6 +5,9 @@ import { MenuPublicView } from "@/features/menu/components/MenuPublicView";
 import { getTenantBySlug } from "@/features/tenant/resolveTenant";
 import { getLocalDate, getWeekday } from "@/lib/time";
 import { TrackedLink } from "@/features/usage/components/TrackedLink";
+import { connection } from "next/server";
+
+export const instant = false;
 
 type Hours = { routine?: Array<{ startTime: string; endTime: string }>; weeklyOverrides?: Record<string, { isClosed?: boolean; slots?: Array<{ startTime: string; endTime: string }> }>; dateOverrides?: Array<{ date: string; isClosed?: boolean; reason?: string; slots?: Array<{ startTime: string; endTime: string }> }> };
 type BusinessInfo = { phone?: string; address?: string; mapUrl?: string | null; instagramUrl?: string | null };
@@ -19,6 +22,7 @@ function getTodayHours(hours: Hours, date: string) {
 }
 
 export default async function TenantLandingPage({ params }: { params: Promise<{ tenant: string }> }) {
+  await connection();
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();

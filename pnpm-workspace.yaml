@@ -1,7 +1,7 @@
 allowBuilds:
-  '@prisma/client': set this to true or false
-  '@prisma/engines': set this to true or false
-  msgpackr-extract: set this to true or false
-  prisma: set this to true or false
+  '@prisma/client': false
+  '@prisma/engines': false
+  msgpackr-extract: false
+  prisma: false
   sharp: false
   unrs-resolver: false

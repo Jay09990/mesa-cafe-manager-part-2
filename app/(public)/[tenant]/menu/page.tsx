@@ -5,6 +5,8 @@ import { MenuPublicView } from "@/features/menu/components/MenuPublicView";
 import { UsagePing } from "@/features/usage/components/UsagePing";
 import { getTenantBySlug } from "@/features/tenant/resolveTenant";
 
+export const instant = false;
+
 export default async function PublicMenuPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);

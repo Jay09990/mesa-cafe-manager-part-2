@@ -2,6 +2,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { focusFormField } from "@/lib/form-feedback";
+import { readApiResponse } from "@/lib/read-api-response";
 
 type Booking = { id: string; name: string; phone: string; date: string; time: string; partySize: number; source: string; status: string };
 
@@ -10,7 +12,8 @@ export function AdminBookingManager({ tenant }: { tenant: string }) {
   const bookingsQuery = useQuery({
     queryKey: ["admin-bookings", tenant],
     queryFn: async () => {
-      const result = await fetch(`/api/admin/bookings?tenant=${encodeURIComponent(tenant)}`).then((response) => response.json());
+      const response = await fetch(`/api/admin/bookings?tenant=${encodeURIComponent(tenant)}`);
+      const result = await readApiResponse<{ bookings: Booking[] }>(response);
       if (!result.success) throw new Error(result.errormsg);
       return result.data.bookings as Booking[];
     },
@@ -18,28 +21,28 @@ export function AdminBookingManager({ tenant }: { tenant: string }) {
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, string | number | boolean>) => {
       const response = await fetch("/api/admin/bookings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, tenant }) });
-      const result = await response.json();
+      const result = await readApiResponse<Booking>(response);
       if (!result.success) throw new Error(result.errormsg);
       return result.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-bookings", tenant] }),
   });
 
-  async function submit(formData: FormData) {
+  async function submit(formData: FormData, form: HTMLFormElement) {
     try {
       await saveMutation.mutateAsync({
         name: String(formData.get("name")), phone: String(formData.get("phone")), email: String(formData.get("email") || ""),
         partySize: Number(formData.get("partySize")), date: String(formData.get("date")), time: String(formData.get("time")),
         notes: String(formData.get("notes") || ""), source: String(formData.get("source")), sendConfirmation: formData.get("sendConfirmation") === "on",
       });
-      (document.querySelector("form") as HTMLFormElement | null)?.reset();
-    } catch { /* The mutation error is shown below. */ }
+      form.reset();
+    } catch (cause) { focusFormField(form, cause instanceof Error ? cause.message : "booking details"); }
   }
 
   return <div className="space-y-8">
     <section className="rounded-lg border border-neutral-200 bg-white p-5">
       <h2 className="text-lg font-semibold">Add booking</h2>
-      <form action={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
+      <form onSubmit={(event) => { event.preventDefault(); void submit(new FormData(event.currentTarget), event.currentTarget); }} className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-medium">Name<input name="name" required className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
         <label className="text-sm font-medium">Phone<input name="phone" type="tel" required className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
         <label className="text-sm font-medium">Email (optional)<input name="email" type="email" className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>

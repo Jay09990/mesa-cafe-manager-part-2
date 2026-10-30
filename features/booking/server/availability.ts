@@ -6,6 +6,8 @@ export type OpeningHours = {
   routine?: TimeWindow[];
   weeklyOverrides?: Record<string, { isClosed?: boolean; slots?: TimeWindow[] }>;
   dateOverrides?: Array<{ date: string; isClosed?: boolean; reason?: string; slots?: TimeWindow[] }>;
+  // Older seeded tenants stored each weekday as { open, close }.
+  [day: string]: unknown;
 };
 export type OccupyingBooking = { date: string; time: string; endTime: string; partySize: number };
 export type AvailabilitySlot = { time: string; endTime: string; available: boolean; capacityRemaining: number };
@@ -26,13 +28,19 @@ function timeFromMinutes(value: number): string {
 
 function resolveWindows(openingHours: OpeningHours, date: string) {
   const override = openingHours.dateOverrides?.find((entry) => entry.date === date);
-  if (override) return { windows: override.isClosed ? [] : override.slots ?? [], closed: Boolean(override.isClosed), reason: override.reason ?? null };
+  if (override) return { windows: override.isClosed ? [] : override.slots ?? [], closed: Boolean(override.isClosed), explicitlyClosed: Boolean(override.isClosed), reason: override.reason ?? null };
 
   const weekday = openingHours.weeklyOverrides?.[getWeekday(date)];
-  if (weekday) return { windows: weekday.isClosed ? [] : weekday.slots ?? [], closed: Boolean(weekday.isClosed), reason: null };
+  if (weekday) return { windows: weekday.isClosed ? [] : weekday.slots ?? [], closed: Boolean(weekday.isClosed), explicitlyClosed: Boolean(weekday.isClosed), reason: null };
+
+  const legacyDay = ({ sun: "sunday", mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday", fri: "friday", sat: "saturday" } as const)[getWeekday(date)];
+  const legacyHours = openingHours[legacyDay] as { open?: unknown; close?: unknown } | undefined;
+  if (legacyHours && typeof legacyHours.open === "string" && typeof legacyHours.close === "string") {
+    return { windows: [{ startTime: legacyHours.open, endTime: legacyHours.close }], closed: false, explicitlyClosed: false, reason: null };
+  }
 
   const windows = openingHours.routine ?? [];
-  return { windows, closed: windows.length === 0, reason: null };
+  return { windows, closed: windows.length === 0, explicitlyClosed: false, reason: null };
 }
 
 function asAbsoluteMinutes(time: string, endTime: string): [number, number] {
@@ -55,17 +63,27 @@ export function generateAvailability(input: {
   bookings?: OccupyingBooking[];
 }) {
   const resolution = resolveWindows(input.openingHours, input.date);
-  if (resolution.closed) return { date: input.date, closed: true, closedReason: resolution.reason, slots: [] as AvailabilitySlot[] };
+  if (resolution.explicitlyClosed) return { date: input.date, closed: true, closedReason: resolution.reason, slots: [] as AvailabilitySlot[] };
   if (![15, 30, 45, 60].includes(input.slotIntervalMinutes)) throw new Error("Slot interval must be 15, 30, 45, or 60 minutes.");
 
   const targetDay = dayIndex(input.date);
-  const slots: AvailabilitySlot[] = [];
+  const previousDate = addDaysToDate(input.date, -1);
+  const previousResolution = resolveWindows(input.openingHours, previousDate);
+  const segments: Array<{ start: number; end: number }> = [];
+  for (const window of previousResolution.windows) {
+    const start = minutesFromTime(window.startTime);
+    const end = minutesFromTime(window.endTime);
+    if (end <= start) segments.push({ start: 0, end });
+  }
   for (const window of resolution.windows) {
-    const startMinute = minutesFromTime(window.startTime);
-    let endMinute = minutesFromTime(window.endTime);
-    if (endMinute <= startMinute) endMinute += MINUTES_PER_DAY;
-
-    for (let start = startMinute; start + input.slotIntervalMinutes <= endMinute; start += input.slotIntervalMinutes) {
+    const start = minutesFromTime(window.startTime);
+    let end = minutesFromTime(window.endTime);
+    if (end <= start) end += MINUTES_PER_DAY;
+    segments.push({ start, end: Math.min(end, MINUTES_PER_DAY) });
+  }
+  const slots: AvailabilitySlot[] = [];
+  for (const segment of segments) {
+    for (let start = segment.start; start + input.slotIntervalMinutes <= segment.end; start += input.slotIntervalMinutes) {
       const end = start + input.slotIntervalMinutes;
       const occupiedSeats = (input.bookings ?? []).reduce((total, booking) => {
         const bookingDay = dayIndex(booking.date);
@@ -80,7 +98,8 @@ export function generateAvailability(input: {
     }
   }
 
-  return { date: input.date, closed: false, closedReason: null, slots };
+  const sortedSlots = [...new Map(slots.map((slot) => [slot.time, slot])).values()].sort((a, b) => minutesFromTime(a.time) - minutesFromTime(b.time));
+  return { date: input.date, closed: sortedSlots.length === 0 && resolution.closed, closedReason: sortedSlots.length === 0 ? resolution.reason : null, slots: sortedSlots };
 }
 
 export function getBookingDateRange(date: string) {

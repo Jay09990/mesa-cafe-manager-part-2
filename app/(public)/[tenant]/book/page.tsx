@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { PublicBookingForm } from "@/features/booking/components/PublicBookingForm";
 import { getTenantBySlug } from "@/features/tenant/resolveTenant";
 
+export const instant = false;
+
 export default async function PublicBookPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);
