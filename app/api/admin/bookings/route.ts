@@ -2,11 +2,11 @@
 import { z } from "zod";
 import { BookingError, createBooking } from "@/features/booking/server/service";
 import { requireTenantRole } from "@/features/auth/guards";
-import { getTenantBySlug } from "@/features/tenant/resolveTenant";
 import { sendBookingEmail } from "@/lib/resend";
 import { apiError, apiSuccess } from "@/lib/api";
 import { isIsoDate } from "@/lib/time";
 import { prisma } from "@/lib/prisma";
+import { invalidateDashboardCache } from "@/features/dashboard/server/summary";
 
 const ownerBookingSchema = z.object({
   tenant: z.string().min(1),
@@ -53,10 +53,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return apiError("Check the booking details and try again.", 400);
   const access = await requireTenantRole(parsed.data.tenant, ["owner", "manager", "staff_bookings"]);
   if (!access) return apiError("You do not have access to add bookings for this café.", 403);
-  const tenant = await getTenantBySlug(parsed.data.tenant);
-  if (!tenant || tenant.id !== access.tenantId) return apiError("Café not found.", 404);
+  const tenant = access.tenant;
   try {
     const result = await createBooking({ ...parsed.data, tenantId: access.tenantId, email: parsed.data.email || null, source: parsed.data.source });
+    invalidateDashboardCache(access.tenantId);
     let emailSent = false;
     try {
       emailSent = parsed.data.sendConfirmation && parsed.data.email

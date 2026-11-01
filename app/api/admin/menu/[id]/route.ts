@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireTenantRole } from "@/features/auth/guards";
 import { apiError, apiSuccess } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 
 const patchSchema = z.object({
   tenant: z.string().min(1),
@@ -28,7 +30,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!existing) return apiError("Menu item not found.", 404);
   const item = await prisma.menuItem.update({ where: { id: existing.id }, data: changes });
   const type = changes.available !== undefined && changes.available !== existing.available ? "menu_item_toggled" : "menu_item_edited";
-  await prisma.usageEvent.create({ data: { tenantId: access.tenantId, userId: access.userId, type, meta: { action: changes.available === false ? "sold_out" : "updated" } } });
+  revalidateTag(`tenant-menu:${access.tenantId}`, { expire: 0 });
+  after(async () => {
+    try { await prisma.usageEvent.create({ data: { tenantId: access.tenantId, userId: access.userId, type, meta: { action: changes.available === false ? "sold_out" : "updated" } } }); }
+    catch (error) { console.error("Failed to record menu update", error); }
+  });
   return apiSuccess(item);
 }
 
@@ -39,6 +45,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (!access) return apiError("You do not have access to this menu.", 403);
   const deleted = await prisma.menuItem.deleteMany({ where: { id, tenantId: access.tenantId } });
   if (!deleted.count) return apiError("Menu item not found.", 404);
-  await prisma.usageEvent.create({ data: { tenantId: access.tenantId, userId: access.userId, type: "menu_item_edited", meta: { action: "deleted" } } });
+  revalidateTag(`tenant-menu:${access.tenantId}`, { expire: 0 });
+  after(async () => {
+    try { await prisma.usageEvent.create({ data: { tenantId: access.tenantId, userId: access.userId, type: "menu_item_edited", meta: { action: "deleted" } } }); }
+    catch (error) { console.error("Failed to record menu deletion", error); }
+  });
   return apiSuccess({ success: true });
 }

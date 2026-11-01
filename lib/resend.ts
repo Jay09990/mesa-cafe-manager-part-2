@@ -3,6 +3,19 @@ import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+export async function sendPasswordResetEmail(input: { to: string; url: string }) {
+  if (!resend || !process.env.RESEND_FROM_EMAIL) {
+    throw new Error("Password reset email is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  }
+
+  await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL,
+    to: input.to,
+    subject: "Reset your Mesa password",
+    text: `We received a request to reset your Mesa password. Use this link to choose a new password:\n\n${input.url}\n\nIf you did not request this, you can ignore this email. This link expires in one hour.`,
+  });
+}
+
 export async function sendBookingEmail(input: { to: string; cafeName: string; date: string; time: string; status: "pending" | "confirmed" | "cancelled" | "no_show" }) {
   if (!resend || !process.env.RESEND_FROM_EMAIL) return false;
   const message = input.status === "pending" ? "Request received — the café will confirm shortly"

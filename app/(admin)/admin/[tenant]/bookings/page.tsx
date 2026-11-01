@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { requireTenantRole } from "@/features/auth/guards";
 import { AdminBookingManager } from "@/features/booking/components/AdminBookingManager";
+import { TableSkeleton } from "@/features/admin-panel/components/LoadingSkeletons";
 
 async function BookingContent({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params;
@@ -12,5 +13,5 @@ async function BookingContent({ params }: { params: Promise<{ tenant: string }> 
 }
 
 export default function BookingsPage({ params }: { params: Promise<{ tenant: string }> }) {
-  return <><h1 className="mb-5 text-2xl font-semibold">Bookings</h1><Suspense fallback={<p role="status" aria-live="polite">Loading bookings…</p>}><BookingContent params={params} /></Suspense></>;
+  return <><h1 className="mb-2 text-xl font-semibold">Bookings</h1><Suspense fallback={<TableSkeleton columns={7} rows={5} label="Loading bookings" />}><BookingContent params={params} /></Suspense></>;
 }

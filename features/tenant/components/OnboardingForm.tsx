@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { focusFormField } from "@/lib/form-feedback";
 import { readApiResponse } from "@/lib/read-api-response";
+import { LoadingSpinner } from "@/features/admin-panel/components/LoadingSpinner";
 
 export function OnboardingForm() {
   const [error, setError] = useState("");
@@ -32,7 +33,7 @@ export function OnboardingForm() {
       <label className="block text-base font-medium">Café name<input name="tenantName" required minLength={2} maxLength={100} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
       <label className="block text-base font-medium">Web address<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={50} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /><span className="mt-1 block text-sm font-normal text-neutral-600">Use lowercase letters, numbers, and hyphens.</span></label>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <button disabled={busy} className="h-12 w-full rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-60">{busy ? "Setting up…" : "Start free trial"}</button>
+      <button disabled={busy} className="h-12 w-full rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-60">{busy ? <LoadingSpinner label="Setting up…" /> : "Start free trial"}</button>
     </form>
   );
 }

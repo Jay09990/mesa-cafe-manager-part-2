@@ -5,6 +5,7 @@ import { isSalesDateAllowed, salesLogSchema, saveSalesLog } from "@/features/sal
 import { apiError, apiSuccess } from "@/lib/api";
 import { isIsoDate } from "@/lib/time";
 import { prisma } from "@/lib/prisma";
+import { invalidateDashboardCache } from "@/features/dashboard/server/summary";
 
 export async function PUT(request: Request, context: { params: Promise<{ date: string }> }) {
   const { date } = await context.params;
@@ -19,5 +20,6 @@ export async function PUT(request: Request, context: { params: Promise<{ date: s
   const parsed = salesLogSchema.safeParse(body);
   if (!parsed.success) return apiError("Enter a whole order count and non-negative amounts with up to two decimal places.", 400);
   const entry = await saveSalesLog({ tenantId: access.tenantId, userId: access.userId, date, values: parsed.data });
+  invalidateDashboardCache(access.tenantId);
   return apiSuccess(entry);
 }

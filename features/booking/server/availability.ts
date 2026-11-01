@@ -60,6 +60,7 @@ export function generateAvailability(input: {
   slotIntervalMinutes: number;
   seatCapacity: number;
   partySize?: number;
+  requestedTime?: string;
   bookings?: OccupyingBooking[];
 }) {
   const resolution = resolveWindows(input.openingHours, input.date);
@@ -83,7 +84,13 @@ export function generateAvailability(input: {
   }
   const slots: AvailabilitySlot[] = [];
   for (const segment of segments) {
-    for (let start = segment.start; start + input.slotIntervalMinutes <= segment.end; start += input.slotIntervalMinutes) {
+    const starts = new Set<number>();
+    for (let start = segment.start; start + input.slotIntervalMinutes <= segment.end; start += input.slotIntervalMinutes) starts.add(start);
+    if (input.requestedTime) {
+      const requestedStart = minutesFromTime(input.requestedTime);
+      if (requestedStart >= segment.start && requestedStart + input.slotIntervalMinutes <= segment.end) starts.add(requestedStart);
+    }
+    for (const start of starts) {
       const end = start + input.slotIntervalMinutes;
       const occupiedSeats = (input.bookings ?? []).reduce((total, booking) => {
         const bookingDay = dayIndex(booking.date);

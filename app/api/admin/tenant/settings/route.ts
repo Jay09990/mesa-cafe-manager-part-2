@@ -4,6 +4,7 @@ import { requireTenantRole } from "@/features/auth/guards";
 import { apiError, apiSuccess } from "@/lib/api";
 import { isValidTimezone } from "@/lib/time";
 import { prisma } from "@/lib/prisma";
+import { revalidateTag } from "next/cache";
 
 const schema = z.object({
   tenant: z.string().min(1),
@@ -27,5 +28,6 @@ export async function PATCH(request: Request) {
   if (!existing) return apiError("Café not found.", 404);
   const mergedInfo = businessInfo ? { ...(existing.businessInfo as Record<string, unknown>), ...businessInfo } : undefined;
   const updated = await prisma.tenant.update({ where: { id: access.tenantId }, data: { ...changes, ...(mergedInfo ? { businessInfo: mergedInfo } : {}) }, select: { timezone: true, currency: true, autoConfirmBookings: true, slotIntervalMinutes: true, businessInfo: true } });
+  revalidateTag(`tenant-public:${parsed.data.tenant}`, { expire: 0 });
   return apiSuccess(updated);
 }

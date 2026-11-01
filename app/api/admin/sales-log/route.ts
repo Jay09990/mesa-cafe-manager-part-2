@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const access = await requireTenantRole(url.searchParams.get("tenant") ?? "", ["owner", "manager"]);
   if (!access) return apiError("You do not have access to sales for this café.", 403);
-  const tenant = await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { tier: true, subscriptionStatus: true, timezone: true } });
+  const tenant = access.tenant;
   if (!tenant || !canUseFeature(tenant, "salesLog")) return apiError("Sales log is not available for this café.", 403);
   const today = getLocalDate(new Date(), tenant.timezone);
   const from = url.searchParams.get("from") ?? addDaysToDate(today, -29);

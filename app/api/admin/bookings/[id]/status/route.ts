@@ -5,6 +5,7 @@ import { requireTenantRole } from "@/features/auth/guards";
 import { apiError, apiSuccess } from "@/lib/api";
 import { sendBookingEmail } from "@/lib/resend";
 import { prisma } from "@/lib/prisma";
+import { invalidateDashboardCache } from "@/features/dashboard/server/summary";
 
 const statusSchema = z.object({ tenant: z.string().min(1), status: z.enum(["confirmed", "cancelled", "no_show"]), managerRemark: z.string().max(1000).optional().default("") });
 
@@ -16,6 +17,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!access) return apiError("You do not have access to update this booking.", 403);
   try {
     const booking = await recordBookingStatusChange({ tenantId: access.tenantId, userId: access.userId, bookingId: id, status: parsed.data.status, managerRemark: parsed.data.managerRemark });
+    invalidateDashboardCache(access.tenantId);
     const contact = booking.email ? await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { name: true } }) : null;
     if (booking.email && contact) {
       try { await sendBookingEmail({ to: booking.email, cafeName: contact.name, date: booking.date, time: booking.time, status: booking.status as "confirmed" | "cancelled" | "no_show" }); }

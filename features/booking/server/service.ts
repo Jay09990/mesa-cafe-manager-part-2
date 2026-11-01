@@ -50,6 +50,7 @@ export async function reserveBookingCapacity<Tenant extends {
       slotIntervalMinutes: tenant.slotIntervalMinutes,
       seatCapacity: tenant.seatCapacity,
       partySize: input.partySize,
+      requestedTime: input.time,
       bookings: existing,
     });
     const slot = availability.slots.find((candidate) => candidate.time === input.time);

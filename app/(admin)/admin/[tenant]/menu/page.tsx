@@ -7,5 +7,5 @@ export default async function AdminMenuPage({ params }: { params: Promise<{ tena
   const { tenant } = await params;
   const access = await requireTenantRole(tenant, ["owner", "manager"]);
   if (!access) redirect("/sign-in");
-  return <><h1 className="mb-5 text-2xl font-semibold">Menu</h1><MenuEditor tenant={tenant} /></>;
+  return <><h1 className="mb-2 text-xl font-semibold">Menu</h1><MenuEditor tenant={tenant} /></>;
 }

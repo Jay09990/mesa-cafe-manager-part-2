@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { trackPublicUsage } from "@/features/usage/components/UsagePing";
 import { focusFormField } from "@/lib/form-feedback";
 import { readApiResponse } from "@/lib/read-api-response";
+import { LoadingSpinner } from "@/features/admin-panel/components/LoadingSpinner";
 
 type Slot = { time: string; endTime: string; available: boolean; capacityRemaining: number };
 
@@ -83,7 +84,7 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
       <label aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
       {slotsQuery.isError && <p role="alert" className="text-sm text-red-700">We could not load times. Please try again.</p>}
       {message && <p role="status" className="text-sm text-neutral-800">{message}</p>}
-      <button disabled={bookingMutation.isPending || slotsQuery.isFetching || !date || slotsQuery.data?.date !== date || slotsQuery.data?.requestedPartySize !== partySize || !slotsQuery.data?.slots.some((slot) => slot.time === time && slot.available)} className="min-h-11 w-full rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-50">{bookingMutation.isPending ? "Sending…" : slotsQuery.isFetching ? "Checking times…" : "Request booking"}</button>
+      <button disabled={bookingMutation.isPending || slotsQuery.isFetching || !date || slotsQuery.data?.date !== date || slotsQuery.data?.requestedPartySize !== partySize || !slotsQuery.data?.slots.some((slot) => slot.time === time && slot.available)} className="min-h-11 w-full rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-50">{bookingMutation.isPending ? <LoadingSpinner label="Sending…" /> : slotsQuery.isFetching ? <LoadingSpinner label="Checking times…" /> : "Request booking"}</button>
     </form>
   );
 }
