@@ -205,7 +205,7 @@ Server-side events (`booking_created`, `dashboard_opened`, `sales_log_saved`, �
 ## Cron
 
 ### `GET /api/cron/day-end-report`
-Not called by the frontend. Vercel Cron runs it daily at `17:00 UTC` (= 22:30 IST). Requires `Authorization: Bearer ${CRON_SECRET}`; reject anything else with `401`.
+Not called by the frontend. Vercel Cron runs it daily, scheduled for `17:00 UTC` (= 22:30 IST). On the Vercel Hobby plan the run can start anywhere in that hour (about 22:30–23:29 IST), so treat it as an "evening" email, not an exact-time promise. Requires `Authorization: Bearer ${CRON_SECRET}`; reject anything else with `401`.
 For each tenant in trial or active status: compute today's summary in the tenant's timezone and email the owner (or a nudge if no sales were logged). Idempotent per tenant per local date using `Tenant.lastDayEndReportDate`. Records a `day_end_email_sent` event.
 
 ---
@@ -230,7 +230,7 @@ Razorpay webhook receiver (not called by the frontend). Verifies the signature a
 ---
 
 ## Auth
-Handled primarily by Clerk directly (sign-in/sign-up/org management use Clerk's own hosted flows/components). Custom endpoints:
+Handled by Better Auth (sign-in, sign-up, sessions and organization membership go through its own routes, mounted under `/api/auth/*` by default; the sign-in UI is built in-house with shadcn). Custom endpoints:
 
 ### `POST /api/auth/tenant-setup` *(existing)*
 Called from onboarding. **Payload:** `{ "tenantName": "string", "slug": "string" }`. Creates the tenant and its owner user. New tenants start with `subscriptionStatus = "trial"` and `trialEndsAt = now + TRIAL_DAYS`. Rejects a duplicate slug with an error.
@@ -241,7 +241,7 @@ Owner, manager. Lists staff on the tenant with their assigned role.
 
 ### `POST /api/admin/staff/:id/role`
 Owner only. **Payload:** `{ "role": "manager | staff_orders | staff_bookings" }`
-Sets the role field on the staff record in Mesa's own database (not a Clerk role — see `tools.md`). The owner role cannot be reassigned via this endpoint.
+Sets the role field on the staff record in Mesa's own database (not a Better Auth organization role — see `tools.md`). The owner role cannot be reassigned via this endpoint.
 
 ---
 

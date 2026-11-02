@@ -100,7 +100,7 @@ mesa/
 │   └── csv.ts                              # CSV writer (escaping + UTF-8 BOM)
 ├── prisma/
 │   └── schema.prisma
-├── vercel.json                             # cron schedule
+├── vercel.json                             # cron schedule (Hobby: once per day only)
 ├── docs/                                   # this doc set lives here, in the repo
 └── public/
 ```
@@ -117,3 +117,4 @@ mesa/
 8. **One slot generator**: `features/booking/server/availability.ts`. The availability API, booking validation and the admin timeline all use it. Never hardcode slot times.
 9. **Migrations are additive.** Add the new column, backfill, switch code over, drop the old column in a later release. Never drop a column that holds data in the same migration that replaces it.
 10. **Tenant isolation on every query.** Every Prisma query on a tenant-scoped table filters by `tenantId` derived server-side, and every admin handler verifies the signed-in user belongs to that tenant.
+11. **The stack is fixed by `tools.md`.** Auth is Better Auth only (never Clerk), the database is Postgres via Prisma only (never Convex), and there is no animation or smooth-scroll library.

@@ -36,12 +36,12 @@ Do NOT stop to ask about: naming conventions (follow existing patterns in the co
 
 ## Phase 1 Build Order (foundation — largely complete)
 
-1. Tenant resolution + auth (Clerk Organizations) — nothing else works without this
+1. Tenant resolution + auth (Better Auth Organizations) — nothing else works without this
 2. Database schema (Prisma) for tenant, user, booking, menu item — get this right early, it's expensive to change later
 3. Admin panel: menu management (Basic tier) — simplest full vertical slice to prove the architecture works end to end
 4. Public themed landing page (single default theme to start — see design.md)
 5. Booking module (Standard tier)
-6. Billing/subscription wiring (Razorpay)
+6. Billing/subscription wiring (Razorpay) — the code exists but stays hidden in the UI and unwired during the trial (see Phase 2)
 7. Tier-gating enforcement across admin panel and booking
 8. Only after a pilot client is live: expand `theming/` with additional theme variants
 
@@ -54,6 +54,7 @@ Phase 1 (above) is largely built. The current goal is a 30-day free trial with 3
 **Step 0 — Foundations (small, unblocks everything)**
 - Add the Tenant fields (`timezone`, `currency`, `autoConfirmBookings`, `slotIntervalMinutes`, `trialEndsAt`, `lastDayEndReportDate`) and the `UsageEvent` model; implement `lib/time.ts` and `trackEvent()`
 - Onboarding creates a trial tenant (no plan selection); trial rule in `tier-config.ts`
+- Remove GSAP (and never add Lenis) — no animation or smooth-scroll library, per `tools.md`
 
 **Step 1 — Booking (hardened)**
 - One slot generator driven by opening hours (add `weeklyOverrides`), midnight-crossing windows handled
@@ -70,7 +71,7 @@ Phase 1 (above) is largely built. The current goal is a 30-day free trial with 3
 **Step 3 — Sales Log & Today Dashboard**
 - `SalesLog` model, entry screen, history list
 - Today dashboard (4 KPI cards + max 3 charts), prompt card when today isn't logged
-- Day-end email cron (`CRON_SECRET`), CSV export for sales and bookings
+- Day-end email cron (`CRON_SECRET`; on Vercel Hobby it fires within the scheduled hour, so word it as an "evening" email), CSV export for sales and bookings
 
 **Step 4 — Trial readiness**
 - Trial banner (non-blocking), Billing page shows trial status only
@@ -82,3 +83,4 @@ Phase 1 (above) is largely built. The current goal is a 30-day free trial with 3
 - Where existing code contradicts these docs, change the code to match the docs — but with additive migrations (see `architecture.md` rule 9)
 - Run the existing tests after each step. Add tests for the slot generator (including midnight-crossing windows and closed days), the capacity transaction, and sales-log validation
 - After each step, give a short summary: what changed, what to test by hand, anything that needs a decision
+- The stack in `tools.md` is decided: Better Auth, Postgres on Neon with Prisma, no Clerk, Convex, Lenis or GSAP. Do not swap pieces. If something seems to need a swap, stop and ask
