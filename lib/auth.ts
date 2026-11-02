@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { after } from "next/server";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization } from "better-auth/plugins";
+import { dash, sentinel } from "@better-auth/infra";
 import { prisma } from "@/lib/prisma";
 import { sendPasswordResetEmail } from "@/lib/resend";
 
@@ -27,5 +28,9 @@ export const auth = betterAuth({
       });
     },
   },
-  plugins: [organization()],
+  plugins: [
+    organization(),
+    dash({ apiKey: process.env.BETTER_AUTH_API_KEY }),
+    sentinel({ apiKey: process.env.BETTER_AUTH_API_KEY }),
+  ],
 });

@@ -20,7 +20,7 @@ Single source of truth for every tool/library decision. The agent should never i
 - **Multi-tenancy pattern:** shared database, `tenant_id` column on every tenant-scoped table, enforced at the query layer (Prisma middleware or a wrapped client that always injects `tenant_id`) — never trust `tenant_id` from client input alone, always derive it server-side from the authenticated session/subdomain
 
 ## Auth
-- **Better Auth**, with its Organization plugin for identity, sessions, and invitations. Each café tenant maps to one Better Auth organization.
+- **Better Auth**, with its Organization plugin for identity, sessions, and invitations. Each café tenant maps to one Better Auth organization. Better Auth Infrastructure uses the server-side `dash()` and `sentinel()` plugins plus the browser-side `dashClient()` and `sentinelClient()` plugins; `BETTER_AUTH_API_KEY` connects those services.
 - Better Auth owns authentication and organization membership. Mesa's separate tenant staff record owns application roles (`owner`, `manager`, `staff_orders`, `staff_bookings`), checked by the shared `guards.ts` helpers. Never authorize application features from a client-supplied organization or role.
 - Use the official Better Auth Prisma adapter with the existing Prisma/PostgreSQL database. Keep Better Auth's required auth tables separate from Mesa's tenant-scoped business models.
 

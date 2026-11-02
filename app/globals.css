@@ -12,6 +12,11 @@
   --public-text: #171717;
   --public-text-muted: #666666;
   --public-border: #e5e5e5;
+  --public-accent: #b5531c;
+  --public-accent-hover: #9c4717;
+  --public-accent-foreground: #ffffff;
+  --public-accent-tint: #f6e7da;
+  --public-accent-tint-foreground: #7a3c16;
   --background: #fafafa;
   --foreground: #171717;
   --card: #ffffff;
