@@ -17,7 +17,8 @@ Public. Resolves current tenant from subdomain.
   "name": "string",
   "tier": "basic | standard | premium | custom",
   "theme": { "themeId": "string", "colors": {}, "fonts": {} },
-  "businessInfo": { "address": "string", "phone": "string", "mapUrl": "string | null", "instagramUrl": "string | null" },
+  "businessInfo": { "address": "string", "city": "string | null", "phone": "string", "mapUrl": "string | null", "instagramUrl": "string | null" },
+  "businessCategory": "cafe | qsr | casual_dining | cloud_kitchen | null",
   "openingHours": { "routine": [], "weeklyOverrides": {}, "dateOverrides": [] },
   "timezone": "Asia/Kolkata",
   "currency": "INR",
@@ -45,9 +46,9 @@ Owner only. **Payload:** `{ "tenant": "slug", "openingHours": OpeningHours }`
 ### `PATCH /api/admin/tenant/settings` *(new)*
 Owner only. **Payload (all optional):**
 ```json
-{ "tenant": "slug", "timezone": "Asia/Kolkata", "currency": "INR", "autoConfirmBookings": false, "slotIntervalMinutes": 30, "businessInfo": {} }
+{ "tenant": "slug", "timezone": "Asia/Kolkata", "currency": "INR", "autoConfirmBookings": false, "slotIntervalMinutes": 30, "businessInfo": {}, "businessCategory": "cafe | qsr | casual_dining | cloud_kitchen | null", "gstin": "string | null", "fssaiLicense": "string | null" }
 ```
-`slotIntervalMinutes` must be one of 15, 30, 45, 60. `timezone` must be a valid IANA name.
+`slotIntervalMinutes` must be one of 15, 30, 45, 60. `timezone` must be a valid IANA name. `gstin` and `fssaiLicense` have no format validation in the trial — free text, optional, never required to save the rest of the form.
 
 ---
 

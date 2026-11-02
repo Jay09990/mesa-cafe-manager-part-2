@@ -2,6 +2,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { focusFormField } from "@/lib/form-feedback";
+import { readApiResponse } from "@/lib/read-api-response";
+import { BoneyardSkeleton, TableSkeleton } from "@/features/admin-panel/components/LoadingSkeletons";
+import { LoadingSpinner } from "@/features/admin-panel/components/LoadingSpinner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Booking = { id: string; name: string; phone: string; date: string; time: string; partySize: number; source: string; status: string };
 
@@ -10,7 +21,8 @@ export function AdminBookingManager({ tenant }: { tenant: string }) {
   const bookingsQuery = useQuery({
     queryKey: ["admin-bookings", tenant],
     queryFn: async () => {
-      const result = await fetch(`/api/admin/bookings?tenant=${encodeURIComponent(tenant)}`).then((response) => response.json());
+      const response = await fetch(`/api/admin/bookings?tenant=${encodeURIComponent(tenant)}`);
+      const result = await readApiResponse<{ bookings: Booking[] }>(response);
       if (!result.success) throw new Error(result.errormsg);
       return result.data.bookings as Booking[];
     },
@@ -18,51 +30,60 @@ export function AdminBookingManager({ tenant }: { tenant: string }) {
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, string | number | boolean>) => {
       const response = await fetch("/api/admin/bookings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...values, tenant }) });
-      const result = await response.json();
+      const result = await readApiResponse<Booking>(response);
       if (!result.success) throw new Error(result.errormsg);
       return result.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-bookings", tenant] }),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["admin-bookings", tenant] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard-today", tenant] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard-trends", tenant] }),
+    ]),
   });
 
-  async function submit(formData: FormData) {
+  async function submit(formData: FormData, form: HTMLFormElement) {
     try {
       await saveMutation.mutateAsync({
         name: String(formData.get("name")), phone: String(formData.get("phone")), email: String(formData.get("email") || ""),
         partySize: Number(formData.get("partySize")), date: String(formData.get("date")), time: String(formData.get("time")),
         notes: String(formData.get("notes") || ""), source: String(formData.get("source")), sendConfirmation: formData.get("sendConfirmation") === "on",
       });
-      (document.querySelector("form") as HTMLFormElement | null)?.reset();
-    } catch { /* The mutation error is shown below. */ }
+      form.reset();
+    } catch (cause) { focusFormField(form, cause instanceof Error ? cause.message : "booking details"); }
   }
 
-  return <div className="space-y-8">
-    <section className="rounded-lg border border-neutral-200 bg-white p-5">
-      <h2 className="text-lg font-semibold">Add booking</h2>
-      <form action={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-medium">Name<input name="name" required className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
-        <label className="text-sm font-medium">Phone<input name="phone" type="tel" required className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
-        <label className="text-sm font-medium">Email (optional)<input name="email" type="email" className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
-        <label className="text-sm font-medium">Party size<input name="partySize" type="number" min="1" inputMode="numeric" required defaultValue="2" className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
-        <label className="text-sm font-medium">Date<input name="date" type="date" required className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
-        <label className="text-sm font-medium">Time<input name="time" type="time" required className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
-        <label className="text-sm font-medium">Source<select name="source" className="mt-1 h-11 w-full rounded border border-neutral-300 px-3"><option value="phone">Phone</option><option value="walk_in">Walk-in</option></select></label>
-        <label className="text-sm font-medium">Notes (optional)<input name="notes" className="mt-1 h-11 w-full rounded border border-neutral-300 px-3" /></label>
+  return <div className="w-full space-y-2">
+    <Card>
+      <CardHeader><CardTitle>Add booking</CardTitle></CardHeader>
+      <CardContent><form onSubmit={(event) => { event.preventDefault(); void submit(new FormData(event.currentTarget), event.currentTarget); }} className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5"><Label htmlFor="booking-name">Name</Label><Input id="booking-name" name="name" required /></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-phone">Phone</Label><Input id="booking-phone" name="phone" type="tel" required /></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-email">Email (optional)</Label><Input id="booking-email" name="email" type="email" /></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-party-size">Party size</Label><Input id="booking-party-size" name="partySize" type="number" min="1" inputMode="numeric" required defaultValue="2" /></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-date">Date</Label><Input id="booking-date" name="date" type="date" required /></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-time">Time</Label><Input id="booking-time" name="time" type="time" required /></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-source">Source</Label><Select name="source" defaultValue="phone"><SelectTrigger id="booking-source"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="phone">Phone</SelectItem><SelectItem value="walk_in">Walk-in</SelectItem></SelectContent></Select></div>
+        <div className="space-y-1.5"><Label htmlFor="booking-notes">Notes (optional)</Label><Input id="booking-notes" name="notes" /></div>
         <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="sendConfirmation" />Email confirmation if an address is provided</label>
-        {saveMutation.isError && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{saveMutation.error.message}</p>}
-        {saveMutation.isSuccess && <p role="status" className="text-sm text-green-800 sm:col-span-2">Booking added.</p>}
-        <button disabled={saveMutation.isPending} className="min-h-11 rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-50 sm:col-span-2">{saveMutation.isPending ? "Saving…" : "Add booking"}</button>
-      </form>
-    </section>
-    <section>
-      <h2 className="mb-3 text-lg font-semibold">Bookings</h2>
-      {bookingsQuery.isLoading && <p>Loading bookings…</p>}
+        {saveMutation.isError && <p role="alert" className="text-sm text-destructive sm:col-span-2">{saveMutation.error.message}</p>}
+        {saveMutation.isSuccess && <p role="status" className="text-sm text-muted-foreground sm:col-span-2">Booking added.</p>}
+        <CardFooter className="justify-end p-0 sm:col-span-2"><Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? <LoadingSpinner label="Saving…" /> : "Add booking"}</Button></CardFooter>
+      </form></CardContent>
+    </Card>
+    <Card>
+      <CardHeader><CardTitle>Bookings</CardTitle></CardHeader>
+      <CardContent>
       {bookingsQuery.isError && <p role="alert">We could not load bookings. Refresh the page to try again.</p>}
-      <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
-        <table className="w-full text-left text-sm"><thead className="bg-neutral-100"><tr>{["Date", "Time", "Name", "Phone", "Party", "Source", "Status"].map((label) => <th key={label} className="p-3 font-semibold">{label}</th>)}</tr></thead>
-          <tbody>{bookingsQuery.data?.map((booking) => <tr key={booking.id} className="border-t border-neutral-200"><td className="p-3">{booking.date}</td><td className="p-3">{booking.time}</td><td className="p-3">{booking.name}</td><td className="p-3">{booking.phone}</td><td className="p-3">{booking.partySize}</td><td className="p-3">{booking.source}</td><td className="p-3">{booking.status}</td></tr>)}</tbody>
-        </table>
+      <BoneyardSkeleton name="booking-table" loading={bookingsQuery.isLoading} fallback={<TableSkeleton columns={7} rows={5} label="Loading bookings" />} fixture={<TableSkeleton columns={7} rows={5} label="Loading bookings" />}>
+      <div className="overflow-x-auto">
+        <Table><TableHeader><TableRow>{["Date", "Time", "Name", "Phone", "Party", "Source", "Status"].map((label) => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
+          <TableBody>{bookingsQuery.data?.map((booking) => <TableRow key={booking.id}><TableCell>{booking.date}</TableCell><TableCell>{booking.time}</TableCell><TableCell>{booking.name}</TableCell><TableCell>{booking.phone}</TableCell><TableCell>{booking.partySize}</TableCell><TableCell><Badge variant="secondary">{booking.source.replaceAll("_", " ")}</Badge></TableCell><TableCell><Badge variant={booking.status === "pending" ? "outline" : booking.status === "cancelled" || booking.status === "no_show" ? "destructive" : "default"}>{booking.status === "no_show" ? "No-show" : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}</Badge></TableCell></TableRow>)}
+            {bookingsQuery.data?.length === 0 && <TableRow><TableCell colSpan={7} className="h-32 text-center text-muted-foreground">No bookings yet — share your booking link or add one above.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
       </div>
-    </section>
+      </BoneyardSkeleton>
+      </CardContent>
+    </Card>
   </div>;
 }

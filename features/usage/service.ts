@@ -11,6 +11,7 @@ export type UsageEventType =
   | "sales_log_saved"
   | "menu_item_edited"
   | "menu_item_toggled"
+  | "report_exported"
   | "day_end_email_sent";
 
 export async function trackEvent(input: {

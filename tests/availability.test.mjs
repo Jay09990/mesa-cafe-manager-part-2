@@ -10,7 +10,8 @@ test("generates slots through a midnight-crossing opening window", () => {
     seatCapacity: 20,
   });
   assert.equal(result.slots.length, 12);
-  assert.deepEqual(result.slots.at(-1), { time: "01:30", endTime: "02:00", available: true, capacityRemaining: 20 });
+  assert.deepEqual(result.slots[0], { time: "00:00", endTime: "00:30", available: true, capacityRemaining: 20 });
+  assert.deepEqual(result.slots.at(-1), { time: "23:30", endTime: "00:00", available: true, capacityRemaining: 20 });
 });
 
 test("returns no slots for weekly and date-level closed days", () => {

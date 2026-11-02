@@ -5,6 +5,8 @@ import { canUseFeature } from "@/features/billing/tier-config";
 import { listMenuForAdmin } from "@/features/menu/service";
 import { apiError, apiSuccess } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 
 const menuItemSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -35,6 +37,10 @@ export async function POST(request: Request) {
   const tenant = await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { tier: true, subscriptionStatus: true } });
   if (!tenant || !canUseFeature(tenant, "menu")) return apiError("Menu management is not available for this café.", 403);
   const item = await prisma.menuItem.create({ data: { ...parsed.data, tenantId: access.tenantId, description: parsed.data.description || null, imageUrl: parsed.data.imageUrl || null } });
-  await prisma.usageEvent.create({ data: { tenantId: access.tenantId, userId: access.userId, type: "menu_item_edited", meta: { action: "created" } } });
+  revalidateTag(`tenant-menu:${access.tenantId}`, { expire: 0 });
+  after(async () => {
+    try { await prisma.usageEvent.create({ data: { tenantId: access.tenantId, userId: access.userId, type: "menu_item_edited", meta: { action: "created" } } }); }
+    catch (error) { console.error("Failed to record menu creation", error); }
+  });
   return apiSuccess(item, 201);
 }

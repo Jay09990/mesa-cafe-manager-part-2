@@ -50,10 +50,12 @@ export async function reserveBookingCapacity<Tenant extends {
       slotIntervalMinutes: tenant.slotIntervalMinutes,
       seatCapacity: tenant.seatCapacity,
       partySize: input.partySize,
+      requestedTime: input.time,
       bookings: existing,
     });
     const slot = availability.slots.find((candidate) => candidate.time === input.time);
-    if (!slot || !slot.available) throw new BookingError("That time just filled up or is outside opening hours. Please pick another.", 409);
+    if (!slot) throw new BookingError("That time is outside the café’s opening hours for this date. Please choose one of the listed times.", 409);
+    if (!slot.available) throw new BookingError("That time is no longer available for your party size. Please choose another time.", 409);
 
     const status = input.source === "online" && !tenant.autoConfirmBookings ? "pending" : "confirmed";
     const created = await operations.createBooking(tenant, existing, slot.endTime);
@@ -113,10 +115,15 @@ export async function recordBookingStatusChange(input: { tenantId: string; userI
     const booking = await tx.booking.findFirst({ where: { id: input.bookingId, tenantId: input.tenantId } });
     if (!booking) throw new BookingError("Booking not found.", 404);
     const updated = await tx.booking.update({ where: { id: booking.id }, data: { status: input.status, managerRemark: input.managerRemark || null } });
-    if (booking.customerId && input.status !== booking.status) {
-      await tx.customer.update({ where: { id: booking.customerId }, data: { noShowCount: input.status === "no_show" ? { increment: 1 } : undefined } });
+    if (input.status !== booking.status) {
+      if (booking.customerId) {
+        const noShowDelta = Number(input.status === "no_show") - Number(booking.status === "no_show");
+        if (noShowDelta !== 0) {
+          await tx.customer.update({ where: { id: booking.customerId }, data: { noShowCount: { increment: noShowDelta } } });
+        }
+      }
+      await tx.usageEvent.create({ data: { tenantId: input.tenantId, userId: input.userId, type: "booking_status_changed", meta: { status: input.status } } });
     }
-    await tx.usageEvent.create({ data: { tenantId: input.tenantId, userId: input.userId, type: "booking_status_changed", meta: { status: input.status } } });
     return updated;
   });
 }

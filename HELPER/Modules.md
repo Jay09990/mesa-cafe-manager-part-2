@@ -22,6 +22,9 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 - Resolve tenant from subdomain (`tenant.mesa.app`) or custom domain (later). On localhost, derive the tenant slug from the page URL, never hardcode a tenant
 - Provide tenant config (name, theme reference, tier, contact info, timezone, currency) via context to both public site and admin panel
 - **Timezone and currency are tenant settings** (`timezone` IANA name, default `Asia/Kolkata`; `currency` ISO code, default `INR`). All business-date logic ("today", slot generation, day-end report) uses the tenant's timezone via `lib/time.ts` — never the server's timezone. All money display uses the tenant's currency — no hardcoded currency symbols
+- `businessInfo` gains an optional `city` key (plain string) — used for local search and city-first targeting, not validated against a list
+- `businessCategory` (nullable enum: `cafe | qsr | casual_dining | cloud_kitchen`) is a tenant-level tag for future tier-segmentation and marketing. **This is not the `Outlet` entity** — it does not imply multi-outlet support, which stays deferred (see "Explicitly Not in the Trial"). Do not scaffold an `Outlet` table or relation from this field
+- `gstin` and `fssaiLicense` (both nullable strings) are stored for later use in the Phase 3 billing/invoicing module. No validation, no required state, no UI gate anywhere in the trial — they exist only so a café doesn't have to be asked again post-trial
 - Enforce that all downstream queries are scoped to the resolved tenant — this is the multi-tenancy backbone, treat it as security-critical, not just convenience
 
 ## 2. Auth Module
@@ -122,6 +125,13 @@ Anything not listed here is out of scope — see "Explicitly Not in the Trial" a
 - Admin page: read-only list with search by name or phone
 - No campaigns, loyalty, segments, birthdays or feedback in the trial
 
+## 8a. Onboarding Sequencing (applies to Tenant + Admin Panel)
+**Purpose:** Get a usable tenant live with the least friction possible — every extra required field before first use costs conversion.
+- Signup captures identity only: owner name + email + password (via Better Auth), café/business name, slug. Nothing else is required to create the account
+- Business setup fields (address, `city`, map link, Instagram, opening hours, seat capacity, max party size) already exist on `Tenant`/`businessInfo` — they are **not** collected in a blocking wizard. After signup, the admin panel shows a persistent, dismissible "Finish setting up your café" banner linking to Settings until the minimum needed to go live (address, opening hours, capacity) is filled
+- `businessCategory`, `gstin`, `fssaiLicense` are optional fields inside Settings, never part of the banner's "required" set
+- The public site and booking flow degrade gracefully (clear empty states, per `design.md`) rather than being blocked, for a tenant that hasn't finished setup
+
 ## 9. Admin Panel Module
 **Purpose:** Where the café owner/staff manages everything. Organised around four jobs: check today's bookings, update the menu, log today's sales, see the numbers.
 - Sidebar: Dashboard (Today), Bookings, Menu, Sales, Customers, Settings, Billing, link to the public site. Show only what the user's role allows
@@ -166,7 +176,7 @@ Recorded so the trial can test it. Prices live in this doc only: `tier-config.ts
 
 ## Data Model Changes (additive migrations only)
 Never drop or rewrite a column that holds data in the same migration that introduces its replacement.
-- **Tenant:** add `timezone` (default `Asia/Kolkata`), `currency` (default `INR`), `autoConfirmBookings` (default false), `slotIntervalMinutes` (default 30), `trialEndsAt`, `lastDayEndReportDate`. `openingHours` JSON gains an optional `weeklyOverrides` (existing saved hours stay valid)
+- **Tenant:** add `timezone` (default `Asia/Kolkata`), `currency` (default `INR`), `autoConfirmBookings` (default false), `slotIntervalMinutes` (default 30), `trialEndsAt`, `lastDayEndReportDate`, `businessCategory` (nullable enum, see Tenant Module), `gstin` (nullable string), `fssaiLicense` (nullable string). `openingHours` JSON gains an optional `weeklyOverrides` (existing saved hours stay valid). `businessInfo` JSON gains an optional `city` key
 - **Booking:** add `source` (enum `online | phone | walk_in`, default `online`), `phone`, `email`, `customerId`. Backfill `phone`/`email` from `contact` (email if it contains `@`, otherwise phone), then keep `contact` until the next release before dropping it
 - **MenuItem:** add `dietaryType` (nullable enum `veg | non_veg | egg`), `sortOrder` (default 0), `isFeatured` (default false)
 - **Customer (new):** `tenantId`, `name`, `phone`, `email?`, `firstSeenAt`, `lastBookingAt?`, `bookingCount`, `noShowCount`; unique on `[tenantId, phone]`

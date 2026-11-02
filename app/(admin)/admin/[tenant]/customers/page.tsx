@@ -13,5 +13,5 @@ export default async function CustomersPage({ params }: { params: Promise<{ tena
     select: { id: true, name: true, phone: true, email: true, bookingCount: true, noShowCount: true, lastBookingAt: true },
     orderBy: { name: "asc" },
   });
-  return <><h1 className="mb-5 text-2xl font-semibold">Customers</h1><CustomerList customers={customers} /></>;
+  return <><h1 className="mb-2 text-xl font-semibold">Customers</h1><CustomerList customers={customers} /></>;
 }

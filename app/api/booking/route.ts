@@ -6,6 +6,7 @@ import { getTenantForRequest } from "@/features/tenant/resolveTenant";
 import { sendBookingEmail } from "@/lib/resend";
 import { apiError, apiSuccess } from "@/lib/api";
 import { isIsoDate } from "@/lib/time";
+import { invalidateDashboardCache } from "@/features/dashboard/server/summary";
 
 const bookingSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -37,7 +38,11 @@ export async function POST(request: Request) {
       notes: parsed.data.notes,
       source: "online",
     });
-    const emailSent = parsed.data.email ? await sendBookingEmail({ to: parsed.data.email, cafeName: tenant.name, date: parsed.data.date, time: parsed.data.time, status: result.status }) : false;
+    invalidateDashboardCache(tenant.id);
+    let emailSent = false;
+    try {
+      emailSent = parsed.data.email ? await sendBookingEmail({ to: parsed.data.email, cafeName: tenant.name, date: parsed.data.date, time: parsed.data.time, status: result.status }) : false;
+    } catch { emailSent = false; }
     const booking = result.created as { id: string };
     return apiSuccess({ id: booking.id, status: result.status, confirmationSentTo: emailSent ? parsed.data.email : null }, 201);
   } catch (error) {

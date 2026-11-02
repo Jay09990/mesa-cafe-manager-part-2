@@ -4,12 +4,16 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { trackPublicUsage } from "@/features/usage/components/UsagePing";
+import { focusFormField } from "@/lib/form-feedback";
+import { readApiResponse } from "@/lib/read-api-response";
+import { LoadingSpinner } from "@/features/admin-panel/components/LoadingSpinner";
 
 type Slot = { time: string; endTime: string; available: boolean; capacityRemaining: number };
 
 export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeName: string }) {
   const [date, setDate] = useState("");
   const [partySize, setPartySize] = useState(2);
+  const [time, setTime] = useState("");
   const [message, setMessage] = useState("");
   const [started, setStarted] = useState(false);
   function markBookingStarted() {
@@ -23,9 +27,9 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
     queryFn: async () => {
       const params = new URLSearchParams({ tenant, date, partySize: String(partySize) });
       const response = await fetch(`/api/booking/availability?${params}`);
-      const result = await response.json();
+      const result = await readApiResponse<{ date: string; closed: boolean; closedReason: string | null; slots: Slot[] }>(response);
       if (!result.success) throw new Error(result.errormsg);
-      return result.data as { closed: boolean; closedReason: string | null; slots: Slot[] };
+      return { ...result.data!, requestedPartySize: partySize };
     },
   });
   const bookingMutation = useMutation({
@@ -33,7 +37,7 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
       const response = await fetch(`/api/booking?tenant=${encodeURIComponent(tenant)}`, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values),
       });
-      const result = await response.json();
+      const result = await readApiResponse<{ id: string; status: "pending" | "confirmed"; confirmationSentTo: string | null }>(response);
       if (!result.success) throw new Error(result.errormsg);
       return result.data as { id: string; status: "pending" | "confirmed"; confirmationSentTo: string | null };
     },
@@ -42,7 +46,7 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
     },
   });
 
-  async function submit(formData: FormData) {
+  async function submit(formData: FormData, form: HTMLFormElement) {
     setMessage("");
     try {
       const result = await bookingMutation.mutateAsync({
@@ -51,24 +55,27 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
         email: String(formData.get("email") || ""),
         partySize,
         date,
-        time: String(formData.get("time")),
+        time,
         notes: String(formData.get("notes") || ""),
         website: String(formData.get("website") || ""),
       });
       window.history.replaceState(null, "", `/${tenant}/booking-status?id=${encodeURIComponent(result.id)}`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "We could not create your booking. Please try again.");
+      const message = error instanceof Error ? error.message : "We could not create your booking. Please try again.";
+      setTime("");
+      if (message.toLowerCase().includes("time")) await slotsQuery.refetch();
+      setMessage(message); focusFormField(form, message);
     }
   }
 
   return (
-    <form action={submit} className="mx-auto w-full max-w-xl space-y-5 rounded-xl border border-neutral-200 bg-white p-5 sm:p-7">
+    <form onSubmit={(event) => { event.preventDefault(); void submit(new FormData(event.currentTarget), event.currentTarget); }} className="mx-auto w-full max-w-xl space-y-5 rounded-xl border border-neutral-200 bg-white p-5 sm:p-7">
       <h1 className="text-2xl font-semibold">Book a visit at {cafeName}</h1>
-      <label className="block text-base font-medium">Date<input type="date" required value={date} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setDate(event.target.value); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
-      <label className="block text-base font-medium">Party size<input type="number" min={1} max={1000} inputMode="numeric" required value={partySize} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setPartySize(Number(event.target.value)); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
+      <label className="block text-base font-medium">Date<input type="date" required value={date} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setDate(event.target.value); setTime(""); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
+      <label className="block text-base font-medium">Party size<input type="number" min={1} max={1000} inputMode="numeric" required value={partySize} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setPartySize(Number(event.target.value)); setTime(""); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
       {date && <fieldset><legend className="text-base font-medium">Available time</legend>
-        {slotsQuery.isLoading ? <p className="mt-2 text-neutral-600">Loading times…</p> : slotsQuery.data?.closed ? <p className="mt-2 text-neutral-600">{slotsQuery.data.closedReason ?? "The café is closed on this date."}</p> :
-          <div className="mt-2 grid grid-cols-3 gap-2">{slotsQuery.data?.slots.filter((slot) => slot.available).map((slot) => <label key={slot.time} className="cursor-pointer"><input className="peer sr-only" type="radio" name="time" value={slot.time} required /><span className="flex min-h-11 items-center justify-center rounded-md border border-neutral-300 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white">{slot.time}</span></label>)}</div>}
+        {slotsQuery.isFetching ? <p className="mt-2 text-neutral-600">Loading times…</p> : slotsQuery.data?.closed ? <p className="mt-2 text-neutral-600">{slotsQuery.data.closedReason ?? "The café is closed on this date."}</p> :
+          <div className="mt-2 grid grid-cols-3 gap-2">{slotsQuery.data?.slots.filter((slot) => slot.available).map((slot) => <label key={slot.time} className="cursor-pointer"><input className="peer sr-only" type="radio" name="time" value={slot.time} required checked={time === slot.time} onChange={() => setTime(slot.time)} /><span className="flex min-h-11 items-center justify-center rounded-md border border-neutral-300 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white">{slot.time}</span></label>)}</div>}
       </fieldset>}
       <label className="block text-base font-medium">Your name<input name="name" autoComplete="name" required maxLength={100} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
       <label className="block text-base font-medium">Phone number<input name="phone" type="tel" autoComplete="tel" required maxLength={30} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
@@ -77,7 +84,7 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
       <label aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
       {slotsQuery.isError && <p role="alert" className="text-sm text-red-700">We could not load times. Please try again.</p>}
       {message && <p role="status" className="text-sm text-neutral-800">{message}</p>}
-      <button disabled={bookingMutation.isPending || !date || !slotsQuery.data?.slots.some((slot) => slot.available)} className="min-h-11 w-full rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-50">{bookingMutation.isPending ? "Sending…" : "Request booking"}</button>
+      <button disabled={bookingMutation.isPending || slotsQuery.isFetching || !date || slotsQuery.data?.date !== date || slotsQuery.data?.requestedPartySize !== partySize || !slotsQuery.data?.slots.some((slot) => slot.time === time && slot.available)} className="min-h-11 w-full rounded-md bg-neutral-900 px-4 font-semibold text-white disabled:opacity-50">{bookingMutation.isPending ? <LoadingSpinner label="Sending…" /> : slotsQuery.isFetching ? <LoadingSpinner label="Checking times…" /> : "Request booking"}</button>
     </form>
   );
 }

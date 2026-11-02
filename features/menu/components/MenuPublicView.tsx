@@ -1,5 +1,7 @@
 // Renders the full menu with sold-out status and optional dietary labels.
-import type { MenuItem } from "@prisma/client";
+import type { MenuItem as PrismaMenuItem } from "@prisma/client";
+
+type MenuItem = Omit<PrismaMenuItem, "price"> & { price: number | string };
 
 const DIETARY_LABELS: Record<string, string> = { veg: "Vegetarian", non_veg: "Non-vegetarian", egg: "Contains egg" };
 

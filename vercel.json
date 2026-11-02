@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm run build",
+  "regions": ["sin1"],
+  "crons": [{ "path": "/api/cron/day-end-report", "schedule": "0 17 * * *" }]
+}

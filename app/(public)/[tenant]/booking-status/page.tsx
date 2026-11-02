@@ -2,6 +2,8 @@
 import { notFound } from "next/navigation";
 import { getBookingById } from "@/features/booking/server/service";
 
+export const instant = false;
+
 export default async function BookingStatusPage({ params, searchParams }: { params: Promise<{ tenant: string }>; searchParams: Promise<{ id?: string | string[] }> }) {
   const [{ tenant }, query] = await Promise.all([params, searchParams]);
   const bookingId = typeof query.id === "string" ? query.id : undefined;
