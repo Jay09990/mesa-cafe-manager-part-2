@@ -1,0 +1,4 @@
+## 2026-11-02 - CSV Formula Injection in Report Exports
+**Vulnerability:** Admin export endpoints (`/api/admin/export/bookings` and `/api/admin/export/sales-log`) use `toCsv` to serialize user-supplied inputs (customer name, notes, phone, email). If user input begins with formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`), spreadsheet applications like Excel or LibreOffice may execute arbitrary formulas or commands when opened by café managers.
+**Learning:** Quoting CSV values alone does not protect against formula execution in spreadsheet engines. Text starting with formula operators needs escaping with a leading apostrophe (`'`) while ensuring raw numeric data remains uncorrupted.
+**Prevention:** Sanitize all string fields at the CSV serialization boundary (`lib/csv.ts`) by prefixing formula trigger characters with `'` if the field is a string, while preserving actual number types.
