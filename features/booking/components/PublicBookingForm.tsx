@@ -16,6 +16,7 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
   const [time, setTime] = useState("");
   const [message, setMessage] = useState("");
   const [started, setStarted] = useState(false);
+  const todayDate = new Date().toISOString().split("T")[0];
   function markBookingStarted() {
     if (started) return;
     setStarted(true);
@@ -71,11 +72,12 @@ export function PublicBookingForm({ tenant, cafeName }: { tenant: string; cafeNa
   return (
     <form onSubmit={(event) => { event.preventDefault(); void submit(new FormData(event.currentTarget), event.currentTarget); }} className="mx-auto w-full max-w-xl space-y-5 rounded-xl border border-neutral-200 bg-white p-5 sm:p-7">
       <h1 className="text-2xl font-semibold">Book a visit at {cafeName}</h1>
-      <label className="block text-base font-medium">Date<input type="date" required value={date} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setDate(event.target.value); setTime(""); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
+      <label className="block text-base font-medium">Date<input type="date" min={todayDate} required value={date} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setDate(event.target.value); setTime(""); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
       <label className="block text-base font-medium">Party size<input type="number" min={1} max={1000} inputMode="numeric" required value={partySize} onFocus={markBookingStarted} onChange={(event) => { markBookingStarted(); setPartySize(Number(event.target.value)); setTime(""); }} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
       {date && <fieldset><legend className="text-base font-medium">Available time</legend>
         {slotsQuery.isFetching ? <p className="mt-2 text-neutral-600">Loading times…</p> : slotsQuery.data?.closed ? <p className="mt-2 text-neutral-600">{slotsQuery.data.closedReason ?? "The café is closed on this date."}</p> :
-          <div className="mt-2 grid grid-cols-3 gap-2">{slotsQuery.data?.slots.filter((slot) => slot.available).map((slot) => <label key={slot.time} className="cursor-pointer"><input className="peer sr-only" type="radio" name="time" value={slot.time} required checked={time === slot.time} onChange={() => setTime(slot.time)} /><span className="flex min-h-11 items-center justify-center rounded-md border border-neutral-300 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white">{slot.time}</span></label>)}</div>}
+          slotsQuery.data?.slots.filter((slot) => slot.available).length === 0 ? <p className="mt-2 text-sm text-neutral-600" role="status">No tables available for this party size on this date. Please try another date or party size.</p> :
+          <div className="mt-2 grid grid-cols-3 gap-2">{slotsQuery.data?.slots.filter((slot) => slot.available).map((slot) => <label key={slot.time} className="cursor-pointer"><input className="peer sr-only" type="radio" name="time" value={slot.time} required checked={time === slot.time} onChange={() => setTime(slot.time)} /><span className="flex min-h-11 items-center justify-center rounded-md border border-neutral-300 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-neutral-900 peer-focus-visible:ring-offset-2">{slot.time}</span></label>)}</div>}
       </fieldset>}
       <label className="block text-base font-medium">Your name<input name="name" autoComplete="name" required maxLength={100} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
       <label className="block text-base font-medium">Phone number<input name="phone" type="tel" autoComplete="tel" required maxLength={30} className="mt-2 h-12 w-full rounded-md border border-neutral-300 px-3" /></label>
