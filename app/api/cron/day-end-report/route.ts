@@ -3,10 +3,11 @@ import { getTodaySummary } from "@/features/dashboard/server/summary";
 import { sendDayEndEmail } from "@/lib/resend";
 import { prisma } from "@/lib/prisma";
 import { apiError, apiSuccess } from "@/lib/api";
+import { isAuthorizedBearer } from "@/lib/crypto";
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) return apiError("Unauthorized.", 401);
+  if (!isAuthorizedBearer(request.headers.get("authorization"), secret)) return apiError("Unauthorized.", 401);
   const tenants = await prisma.tenant.findMany({ where: { subscriptionStatus: { in: ["trial", "active"] } }, select: { id: true, name: true, timezone: true, currency: true, lastDayEndReportDate: true, staff: { where: { role: "owner" }, select: { user: { select: { email: true } } } } } });
   let sent = 0;
   for (const tenant of tenants) {
