@@ -1,28 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isValidCronSecret } from "../lib/cron-auth.ts";
+import { isAuthorizedBearer } from "../lib/crypto.ts";
 
-test("isValidCronSecret validates authorization header in constant time", () => {
-  const secret = "production-cron-secret-xyz-12345";
+test("isAuthorizedBearer authorizes identical bearer token", () => {
+  const secret = "super-secret-cron-token-12345";
+  const header = `Bearer ${secret}`;
+  assert.equal(isAuthorizedBearer(header, secret), true);
+});
 
-  // Returns true when Bearer token matches CRON_SECRET
-  assert.equal(isValidCronSecret(`Bearer ${secret}`, secret), true);
+test("isAuthorizedBearer rejects missing header or secret", () => {
+  const secret = "super-secret-cron-token-12345";
+  assert.equal(isAuthorizedBearer(null, secret), false);
+  assert.equal(isAuthorizedBearer(undefined, secret), false);
+  assert.equal(isAuthorizedBearer("", secret), false);
+  assert.equal(isAuthorizedBearer(`Bearer ${secret}`, undefined), false);
+  assert.equal(isAuthorizedBearer(`Bearer ${secret}`, ""), false);
+});
 
-  // Returns false when token is incorrect
-  assert.equal(isValidCronSecret("Bearer wrong-secret", secret), false);
-
-  // Returns false when prefix is missing
-  assert.equal(isValidCronSecret(secret, secret), false);
-
-  // Returns false for null or undefined headers
-  assert.equal(isValidCronSecret(null, secret), false);
-
-  // Returns false when secret is empty or undefined
-  assert.equal(isValidCronSecret(`Bearer ${secret}`, ""), false);
-  assert.equal(isValidCronSecret(`Bearer ${secret}`, undefined), false);
-
-  // Safe against timing attack variations and different input lengths
-  assert.equal(isValidCronSecret("Bearer ", secret), false);
-  assert.equal(isValidCronSecret("Bearer p", secret), false);
-  assert.equal(isValidCronSecret(`Bearer ${secret}extra`, secret), false);
+test("isAuthorizedBearer rejects token with different character or length", () => {
+  const secret = "super-secret-cron-token-12345";
+  assert.equal(isAuthorizedBearer("Bearer wrong-token", secret), false);
+  assert.equal(isAuthorizedBearer(`Bearer ${secret.slice(0, -1)}`, secret), false);
+  assert.equal(isAuthorizedBearer(`Bearer ${secret}extra`, secret), false);
+  assert.equal(isAuthorizedBearer(`Basic ${secret}`, secret), false);
 });
